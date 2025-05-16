@@ -1,71 +1,68 @@
-            public function checkSettlementStatus() {
-                if (!$this->user->hasPermission('modify', 'extension/payment/authorizenet_ah')) {
-                    $this->session->data['warning'] = "You do not have permission to check settlement status.";
-                    $this->response->redirect($this->url->link('sale/order/info', 'user_token=' . $this->session->data['user_token'] . '&order_id=' . (int)$this->request->get['order_id'], true));
-                    die();
-                }
-                // GET Order Auth Transaction details
-                $this->load->model('sale/order');
-                $order_transaction = $this->model_sale_order->getAuthnetAhTransaction($this->request->get['order_id']);
+    public function checkSettlementStatus() {
+	if (!$this->user->hasPermission('modify', 'extension/payment/authorizenet_ah')) {
+	    $this->session->data['warning'] = "You do not have permission to check settlement status.";
+	    $this->response->redirect($this->url->link('sale/order/info', 'user_token=' . $this->session->data['user_token'] . '&order_id=' . (int)$this->request->get['order_id'], true));
+	    die();
+	}
+	// GET Order Auth Transaction details
+	$this->load->model('sale/order');
+	$order_transaction = $this->model_sale_order->getAuthnetAhTransaction($this->request->get['order_id']);
 
-                $data['x_login'] = $this->config->get('payment_authorizenet_ah_login');
-                $data['x_tran_key'] = $this->config->get('payment_authorizenet_ah_key');
+	$data['x_login'] = $this->config->get('payment_authorizenet_ah_login');
+	$data['x_tran_key'] = $this->config->get('payment_authorizenet_ah_key');
 
-                $form_request = array();
-                $form_request['getTransactionDetailsRequest']['merchantAuthentication']['name'] = $data['x_login'];
-                $form_request['getTransactionDetailsRequest']['merchantAuthentication']['transactionKey'] = $data['x_tran_key'];
+	$form_request = array();
+	$form_request['getTransactionDetailsRequest']['merchantAuthentication']['name'] = $data['x_login'];
+	$form_request['getTransactionDetailsRequest']['merchantAuthentication']['transactionKey'] = $data['x_tran_key'];
 
-                $form_request['getTransactionDetailsRequest']['refId'] = $this->request->get['order_id'];
-				$form_request['getTransactionDetailsRequest']['transId'] = $order_transaction['transaction_id'];
-
-
-                if ($this->config->get('payment_authorizenet_ah_server') == 'live') {
-                    $url = 'https://api.authorize.net/xml/v1/request.api';
-                } elseif ($this->config->get('payment_authorizenet_ah_server') == 'test') {
-                    $url = 'https://apitest.authorize.net/xml/v1/request.api';
-                }
-                $curl = curl_init($url);
-
-                curl_setopt($curl, CURLOPT_PORT, 443);
-                curl_setopt($curl, CURLOPT_HEADER, 0);
-                curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
-                curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-                curl_setopt($curl, CURLOPT_FORBID_REUSE, 1);
-                curl_setopt($curl, CURLOPT_FRESH_CONNECT, 1);
-                curl_setopt($curl, CURLOPT_POST, 1);
-                curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
-                curl_setopt($curl, CURLOPT_TIMEOUT, 10);
-                curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($form_request));
-
-                $response = curl_exec($curl);
-                $response = str_replace("\xEF\xBB\xBF",'',$response);
-                $response = json_decode($response, true);
+	$form_request['getTransactionDetailsRequest']['refId'] = $this->request->get['order_id'];
+			$form_request['getTransactionDetailsRequest']['transId'] = $order_transaction['transaction_id'];
 
 
-                if (curl_error($curl)) {
-                    $this->log->write('AUTHNET ACCEPT HOSTED CURL ERROR: ' . curl_errno($curl) . '::' . curl_error($curl));
-                } elseif ($response) {
+	if ($this->config->get('payment_authorizenet_ah_server') == 'live') {
+	    $url = 'https://api.authorize.net/xml/v1/request.api';
+	} elseif ($this->config->get('payment_authorizenet_ah_server') == 'test') {
+	    $url = 'https://apitest.authorize.net/xml/v1/request.api';
+	}
+	$curl = curl_init($url);
 
-					return $response['transaction']['transactionStatus'];
-                }
-            }
+	curl_setopt($curl, CURLOPT_PORT, 443);
+	curl_setopt($curl, CURLOPT_HEADER, 0);
+	curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
+	curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+	curl_setopt($curl, CURLOPT_FORBID_REUSE, 1);
+	curl_setopt($curl, CURLOPT_FRESH_CONNECT, 1);
+	curl_setopt($curl, CURLOPT_POST, 1);
+	curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
+	curl_setopt($curl, CURLOPT_TIMEOUT, 10);
+	curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($form_request));
+
+	$response = curl_exec($curl);
+	$response = str_replace("\xEF\xBB\xBF",'',$response);
+	$response = json_decode($response, true);
+
+	if (curl_error($curl)) {
+	    $this->log->write('AUTHNET ACCEPT HOSTED CURL ERROR: ' . curl_errno($curl) . '::' . curl_error($curl));
+	} elseif ($response) {
+		return $response['transaction']['transactionStatus'];
+	}
+    }
 			
-			public function isTransactionSettled(){
-				$transactionStatus = $this->checkSettlementStatus();
-				if ($transactionStatus == 'capturedPendingSettlement'){return false;}
-				else{return true;}
+	public function isTransactionSettled(){
+		$transactionStatus = $this->checkSettlementStatus();
+		if ($transactionStatus == 'capturedPendingSettlement'){return false;}
+		else{return true;}
 	
-			}
+	}
 			
-			public function authRefund() {
-                if (!$this->user->hasPermission('modify', 'extension/payment/authorizenet_ah')) {
+	public function authRefund() {
+        	if (!$this->user->hasPermission('modify', 'extension/payment/authorizenet_ah')) {
                     $this->session->data['warning'] = "You do not have permission to process refunds.";
                     $this->response->redirect($this->url->link('sale/order/info', 'user_token=' . $this->session->data['user_token'] . '&order_id=' . (int)$this->request->get['order_id'], true));
                     die();
                 }
-				
-				
-				// GET Order Auth Transaction details
+					
+		// GET Order Auth Transaction details
                 $this->load->model('sale/order');
                 $order_transaction = $this->model_sale_order->getAuthnetAhTransaction($this->request->get['order_id']);
 
@@ -78,24 +75,23 @@
                 $form_request['createTransactionRequest']['refId'] = $this->request->get['order_id'];
 				
 				
-				//Check if payment is settled or not. Will change the form request
-				$isTransactionSettled = $this->isTransactionSettled();
-				
-				if($isTransactionSettled){ //If settled REFUND 
-					$transactionTypeForLogging = "Refund";
-					$form_request['createTransactionRequest']['transactionRequest']['transactionType'] = "refundTransaction";
-					$form_request['createTransactionRequest']['transactionRequest']['amount'] = $order_transaction['amount'];
-					$form_request['createTransactionRequest']['transactionRequest']['payment']['creditCard']['cardNumber'] = str_pad($order_transaction['card_last_four'], 4, "0", STR_PAD_LEFT);
-					$form_request['createTransactionRequest']['transactionRequest']['payment']['creditCard']['expirationDate'] = 'XXXX';
-					$form_request['createTransactionRequest']['transactionRequest']['refTransId'] = $order_transaction['transaction_id'];
-					$form_request['createTransactionRequest']['transactionRequest']['order']['invoiceNumber'] = $order_transaction['order_id'];				
-				}
-				else{ //If not settled VOID
-					$transactionTypeForLogging = "Void";
-					$form_request['createTransactionRequest']['transactionRequest']['transactionType'] = "voidTransaction";
-					$form_request['createTransactionRequest']['transactionRequest']['refTransId'] = $order_transaction['transaction_id'];
-				}
-
+		//Check if payment is settled or not. Will change the form request
+		$isTransactionSettled = $this->isTransactionSettled();
+		
+		if($isTransactionSettled){ //If settled REFUND 
+			$transactionTypeForLogging = "Refund";
+			$form_request['createTransactionRequest']['transactionRequest']['transactionType'] = "refundTransaction";
+			$form_request['createTransactionRequest']['transactionRequest']['amount'] = $order_transaction['amount'];
+			$form_request['createTransactionRequest']['transactionRequest']['payment']['creditCard']['cardNumber'] = str_pad($order_transaction['card_last_four'], 4, "0", STR_PAD_LEFT);
+			$form_request['createTransactionRequest']['transactionRequest']['payment']['creditCard']['expirationDate'] = 'XXXX';
+			$form_request['createTransactionRequest']['transactionRequest']['refTransId'] = $order_transaction['transaction_id'];
+			$form_request['createTransactionRequest']['transactionRequest']['order']['invoiceNumber'] = $order_transaction['order_id'];				
+		}
+		else{ //If not settled VOID
+			$transactionTypeForLogging = "Void";
+			$form_request['createTransactionRequest']['transactionRequest']['transactionType'] = "voidTransaction";
+			$form_request['createTransactionRequest']['transactionRequest']['refTransId'] = $order_transaction['transaction_id'];
+		}
 
                 if ($this->config->get('payment_authorizenet_ah_server') == 'live') {
                     $url = 'https://api.authorize.net/xml/v1/request.api';
@@ -122,39 +118,37 @@
                 if (curl_error($curl)) {
                     $this->log->write('AUTHNET ACCEPT HOSTED CURL ERROR: ' . curl_errno($curl) . '::' . curl_error($curl));
                 } elseif ($response) {
-				
-					// Successfull Transaction
-					$response['transaction'] = $response['transactionResponse'];
-				
-					if($isTransactionSettled){  //If settled, handle refund                  
-						$response['transaction']['AVSResponse'] = $response['transaction']['avsResultCode']; //USELESS
-						$response['transaction']['payment']['creditCard']['cardNumber'] = $response['transaction']['accountNumber'];//USELESS
-						$response['transaction']['payment']['creditCard']['expirationDate'] = 'XXXX'; //USELESS
-						$response['transaction']['transactionType'] = 'refundTransaction';                    
-					}
-					else{//If settled, handle Void 
-						$response['transaction']['transactionType'] = 'voidTransaction';
-					}
-				
-					if ($response['transaction']['responseCode'] == 1 || $response['transaction']['responseCode'] == 4) {
-                        $message = $transactionTypeForLogging." Payment \n";
-                        $message .= 'Transaction ID: ' . $response['transaction']['transId'] . "\n";
-
-                        if($response['transaction']['responseCode'] == 1){
-                            $status = $this->config->get('payment_authorizenet_ah_refund_order_status_id'); //1 = success
-                        } else {
-                            $status = $this->config->get('payment_authorizenet_ah_hold_order_status_id'); //4 = held
-                        }
-                        $this->db->query("INSERT INTO " . DB_PREFIX . "order_history SET order_id = '" . (int)$this->request->get['order_id'] . "', order_status_id = '" . (int)$status . "', notify = 0, comment = '" . $this->db->escape($message) . "', date_added = NOW()");
-
-                        $this->refundTransaction($this->request->get['order_id'], $response);
-                        $this->session->data['success'] = $transactionTypeForLogging.'Successful';
-                        $this->response->redirect($this->url->link('sale/order/info', 'user_token=' . $this->session->data['user_token'] . '&order_id=' . (int)$this->request->get['order_id'], true));
-
-                    } else {
-                        $this->session->data['warning'] = $response['transactionResponse']['errors'][0]['errorCode'] . ": " . $response['transactionResponse']['errors'][0]['errorText'];
-                        $this->response->redirect($this->url->link('sale/order/info', 'user_token=' . $this->session->data['user_token'] . '&order_id=' . (int)$this->request->get['order_id'], true));
-                    }			
-			
+			// Successfull Transaction
+			$response['transaction'] = $response['transactionResponse'];
+		
+			if($isTransactionSettled){  //If settled, handle refund                  
+				$response['transaction']['AVSResponse'] = $response['transaction']['avsResultCode']; //USELESS
+				$response['transaction']['payment']['creditCard']['cardNumber'] = $response['transaction']['accountNumber'];//USELESS
+				$response['transaction']['payment']['creditCard']['expirationDate'] = 'XXXX'; //USELESS
+				$response['transaction']['transactionType'] = 'refundTransaction';                    
+			}
+			else{//If settled, handle Void 
+				$response['transaction']['transactionType'] = 'voidTransaction';
+			}
+					
+			if ($response['transaction']['responseCode'] == 1 || $response['transaction']['responseCode'] == 4) {
+	                        $message = $transactionTypeForLogging." Payment \n";
+	                        $message .= 'Transaction ID: ' . $response['transaction']['transId'] . "\n";
+	
+	                        if($response['transaction']['responseCode'] == 1){
+	                            $status = $this->config->get('payment_authorizenet_ah_refund_order_status_id'); //1 = success
+	                        } else {
+	                            $status = $this->config->get('payment_authorizenet_ah_hold_order_status_id'); //4 = held
+	                        }
+	                        $this->db->query("INSERT INTO " . DB_PREFIX . "order_history SET order_id = '" . (int)$this->request->get['order_id'] . "', order_status_id = '" . (int)$status . "', notify = 0, comment = '" . $this->db->escape($message) . "', date_added = NOW()");
+	
+	                        $this->refundTransaction($this->request->get['order_id'], $response);
+	                        $this->session->data['success'] = $transactionTypeForLogging.'Successful';
+	                        $this->response->redirect($this->url->link('sale/order/info', 'user_token=' . $this->session->data['user_token'] . '&order_id=' . (int)$this->request->get['order_id'], true));
+	
+			} else {
+				$this->session->data['warning'] = $response['transactionResponse']['errors'][0]['errorCode'] . ": " . $response['transactionResponse']['errors'][0]['errorText'];
+				$this->response->redirect($this->url->link('sale/order/info', 'user_token=' . $this->session->data['user_token'] . '&order_id=' . (int)$this->request->get['order_id'], true));
+			}			
                 }
             }
